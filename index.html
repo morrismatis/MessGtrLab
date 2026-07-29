@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messiaen Guitar Phrase Generator & Composition Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f3ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#1e1b4b',
+                        },
+                        messiaen: {
+                            purple: '#a855f7',
+                            cyan: '#06b6d4',
+                            amber: '#f59e0b',
+                            emerald: '#10b981',
+                            rose: '#f43f5e'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.4);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.7);
+        }
+        .fretboard-container {
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+        .tab-font {
+            font-family: 'Fira Code', monospace;
+            white-space: pre;
+            line-height: 1.25;
+        }
+        .glow-active {
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+        @keyframes pulse-note {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.3); opacity: 1; filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.8)); }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+        .playing-note {
+            animation: pulse-note 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+                    <i class="fa-solid fa-guitar text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-wide bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">
+                        Messiaen Guitar Lab
+                    </h1>
+                    <p class="text-xs text-slate-400 font-mono">Modes of Limited Transposition Generator</p>
+                </div>
+            </div>
+
+            <!-- Quick Info & Gemini API status -->
+            <div class="flex items-center gap-4">
+                <button id="infoModalBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 flex items-center gap-2 transition border border-slate-700">
+                    <i class="fa-solid fa-book-open text-indigo-400"></i>
+                    <span class="hidden sm:inline">Modes Info</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- LEFT COLUMN: Mode & Generator Parameters (4 Cols) -->
+        <div class="lg:col-span-4 flex flex-col gap-6">
+
+            <!-- Mode Selector Card -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-indigo-400 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders"></i> Mode Setup
+                    </h2>
+                    <span id="symmetryBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800">
+                        Whole-Tone
+                    </span>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Root Key Selector -->
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5 font-medium">Root Pitch Center</label>
+                        <div class="grid grid-cols-6 gap-1" id="rootPitchGrid">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Messiaen Mode Selector -->
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5 font-medium">Messiaen Mode</label>
+                        <select id="modeSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition font-medium">
+                            <option value="1">Mode 1: Whole-Tone (6 pitches)</option>
+                            <option value="2">Mode 2: Half-Whole Diminished (8 pitches)</option>
+                            <option value="3" selected>Mode 3: 9-Note Symmetrical (9 pitches)</option>
+                            <option value="4">Mode 4: Tritone Symmetrical 1 (8 pitches)</option>
+                            <option value="5">Mode 5: Tritone Symmetrical 2 (6 pitches)</option>
+                            <option value="6">Mode 6: Tritone Symmetrical 3 (8 pitches)</option>
+                            <option value="7">Mode 7: 10-Note Symmetrical (10 pitches)</option>
+                        </select>
+                    </div>
+
+                    <!-- Mode Pitch Summary Display -->
+                    <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80">
+                        <div class="text-[11px] text-slate-400 font-mono mb-1 flex justify-between">
+                            <span>PITCH COLLECTION:</span>
+                            <span id="noteCount" class="text-indigo-400">9 notes</span>
+                        </div>
+                        <div id="modeNotesDisplay" class="font-mono text-sm font-semibold text-purple-300 tracking-wider">
+                            C D E♭ E F♯ G A♭ B♭ B
+                        </div>
+                    </div>
+
+                    <!-- Compatible Chords Overlay -->
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5 font-medium flex justify-between">
+                            <span>Compatible Harmonizations</span>
+                            <span class="text-[10px] text-indigo-400">From Vol. I Catalog</span>
+                        </label>
+                        <div id="chordFamilyBadges" class="flex flex-wrap gap-1.5">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Algorithmic Generator Controls -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm flex-1 flex flex-col">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-indigo-400 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-dice text-purple-400"></i> Chance Operations Engine
+                </h2>
+
+                <div class="space-y-4 flex-1">
+                    <!-- Chance Operation Method -->
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5 font-medium">Chance Method</label>
+                        <select id="chanceMethodSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                            <option value="stochasticWalk">Stochastic Walk (Weighted Leaps & Steps)</option>
+                            <option value="symmetricalSeed">Motivic Seed Permutation (Aleatoric Shifts)</option>
+                            <option value="intervallicChance">Intervallic Leap Matrix (Wide Contrapuntal)</option>
+                            <option value="stringSkippingChance">String-Skipping Aleatoric Jumps</option>
+                            <option value="holdsworthLegato">Holdsworth Symmetrical Legato Stretches</option>
+                        </select>
+                    </div>
+
+                    <!-- Phrase Note Count Input -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Exact Phrase Note Count</label>
+                            <span id="phraseLengthVal" class="text-xs font-mono text-indigo-400">16 Notes</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <input type="number" id="phraseLengthNumber" min="4" max="64" value="16" class="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs font-mono text-indigo-300 text-center focus:outline-none focus:border-indigo-500">
+                            <input type="range" id="phraseLengthRange" min="4" max="64" step="1" value="16" class="accent-indigo-500 flex-1">
+                        </div>
+                    </div>
+
+                    <!-- Contour & Transformation -->
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5 font-medium">Transformation</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="directionSelect" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                                <option value="freeChance">Free Chance Direction</option>
+                                <option value="ascending">Ascending Contour</option>
+                                <option value="descending">Descending Contour</option>
+                                <option value="arch">Arch (Up & Down)</option>
+                            </select>
+
+                            <select id="transformSelect" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                                <option value="prime">Prime (Original)</option>
+                                <option value="retrograde">Retrograde (Reverse)</option>
+                                <option value="inversion">Inversion (+12 Octave Upper)</option>
+                                <option value="retroInversion">Retrograde-Inversion (+12 Upper)</option>
+                            </select>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Inversions start +12 semitones higher to preserve high string mechanics.</p>
+                    </div>
+
+                    <!-- Rhythmic Grid & Density -->
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5 font-medium">Subdivision & Rhythm</label>
+                        <select id="rhythmSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                            <option value="16th">16th Notes (Continuous)</option>
+                            <option value="triplet">16th Triplets (Legato Run)</option>
+                            <option value="quintuplet">Quintuplets (5-Note Groups)</option>
+                            <option value="aleatoricRhythm">Aleatoric Mixed Rhythms (16ths + Rest Pauses)</option>
+                        </select>
+                    </div>
+
+                    <!-- Accent Shift / Displacement -->
+                    <div class="pt-1">
+                        <label class="flex items-center justify-between text-xs text-slate-400 cursor-pointer">
+                            <span class="flex items-center gap-2">
+                                <i class="fa-solid fa-arrows-left-right-to-line text-purple-400"></i> Metronomic Accent Shift
+                            </span>
+                            <input type="checkbox" id="accentShiftToggle" class="rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 h-4 w-4">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Generate Button -->
+                <div class="pt-4 mt-auto">
+                    <button id="generateBtn" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-semibold text-sm shadow-lg shadow-indigo-500/25 transition transform active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-dice-five"></i>
+                        <span>Roll Chance Phrase</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Output, Interactive Fretboard, TAB & Playback (8 Cols) -->
+        <div class="lg:col-span-8 flex flex-col gap-6">
+
+            <!-- Primary Workspace / Tab & Playback Header -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm">
+
+                <!-- Header Action Controls -->
+                <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                    <div>
+                        <h3 id="phraseTitle" class="text-base font-bold text-white flex items-center gap-2">
+                            <span class="text-purple-400 font-mono">#001</span> Mode 3 Chance Phrase
+                        </h3>
+                        <p id="phraseSubtitle" class="text-xs text-slate-400 mt-0.5">Key of C • Symmetrical Major 3rd Cycle • 16 Notes</p>
+                    </div>
+
+                    <!-- Audio Synth & Export Tools -->
+                    <div class="flex items-center gap-2">
+                        <button id="playBtn" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-2 shadow-md shadow-emerald-900/30 transition">
+                            <i class="fa-solid fa-play" id="playIcon"></i>
+                            <span id="playText">Play Phrase</span>
+                        </button>
+                        
+                        <button id="droneBtn" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs flex items-center gap-2 border border-slate-700 transition" title="Toggle Harmonized Backing Drone Chord">
+                            <i class="fa-solid fa-wave-square text-indigo-400"></i>
+                            <span id="droneText">Drone Chord: Off</span>
+                        </button>
+
+                        <div class="h-6 w-px bg-slate-800"></div>
+
+                        <button id="copyTabBtn" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition" title="Copy ASCII Tab to Clipboard">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tempo & Playback Settings Bar -->
+                <div class="flex items-center justify-between gap-4 py-3 border-b border-slate-800 text-xs text-slate-400">
+                    <div class="flex items-center gap-3">
+                        <span class="font-mono">TEMPO:</span>
+                        <input type="range" id="bpmRange" min="50" max="220" value="110" class="accent-indigo-500 w-28">
+                        <span id="bpmDisplay" class="font-mono font-bold text-indigo-400 w-12">110 BPM</span>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono">TIMBRE:</span>
+                            <select id="synthTimbreSelect" class="bg-slate-950 border border-slate-800 rounded px-2 py-0.5 text-xs text-slate-300">
+                                <option value="guitar">Plucked Guitar Synth</option>
+                                <option value="legato">Overdriven Fusion Lead</option>
+                                <option value="clean">Glassy Jazz Clean</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tablature Display Box -->
+                <div class="mt-4 relative">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[11px] font-mono text-indigo-400 uppercase tracking-widest">Guitar Tablature Notation</span>
+                        <span class="text-[10px] text-slate-500 font-mono">Standard Tuning (E A D G B E)</span>
+                    </div>
+                    <div id="tabNotationBox" class="tab-font bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs text-emerald-400 overflow-x-auto select-all shadow-inner">
+                        <!-- Rendered Tab Output -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive Guitar Fretboard View -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-indigo-400 flex items-center gap-2">
+                        <i class="fa-solid fa-layer-group"></i> Dynamic Neck Diagram
+                    </h3>
+                    <div class="flex items-center gap-3 text-xs text-slate-400">
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"></span> Root Note</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block"></span> Phrase Path</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-slate-700 inline-block"></span> Mode Collection</span>
+                    </div>
+                </div>
+
+                <div class="fretboard-container bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+                    <svg id="fretboardSvg" class="w-full min-w-[700px] h-[190px]" viewBox="0 0 1000 190">
+                        <!-- SVG Fretboard will be rendered here -->
+                    </svg>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Info Modal for Messiaen's 7 Modes of Limited Transposition -->
+    <div id="infoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-book-bookmark text-indigo-400"></i> Messiaen's 7 Modes of Limited Transposition
+                </h3>
+                <button id="closeModalBtn" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="py-4 overflow-y-auto text-xs text-slate-300 space-y-4 pr-2">
+                <p>
+                    Formulated by Olivier Messiaen in <em>Technique de mon langage musical</em> (1944) and explored extensively by guitarists like <strong>Allan Holdsworth</strong> (via Nicolas Slonimsky's Thesaurus), these symmetrical pitch collections repeat after only a few transpositions due to their internal intervallic symmetry.
+                </p>
+
+                <div class="space-y-3 font-mono">
+                    <div class="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
+                        <span class="text-indigo-400 font-bold">Mode 1 (Whole-Tone):</span> 2 transpositions • [C, D, E, F#, G#, A#]
+                        <p class="font-sans text-[11px] text-slate-400 mt-0.5">Symmetrical by whole steps. Creates pure augmented triads and dominant 7b5/7#5 soundscapes.</p>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
+                        <span class="text-purple-400 font-bold">Mode 2 (Half-Whole Diminished / Octatonic):</span> 3 transpositions • [C, Db, Eb, E, F#, G, A, Bb]
+                        <p class="font-sans text-[11px] text-slate-400 mt-0.5">Symmetrical in minor 3rds. Rich in minor 7th, half-diminished, and altered dominant options.</p>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
+                        <span class="text-pink-400 font-bold">Mode 3:</span> 4 transpositions • [C, D, Eb, E, F#, G, Ab, Bb, B]
+                        <p class="font-sans text-[11px] text-slate-400 mt-0.5">Symmetrical in major 3rds (2-1-1 pattern). Yields lush Maj7#11, min9, and augmented structures.</p>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
+                        <span class="text-cyan-400 font-bold">Mode 4:</span> 6 transpositions • [C, Db, D, F, F#, G, Ab, B]
+                        <p class="font-sans text-[11px] text-slate-400 mt-0.5">Symmetrical at the tritone. Features Dbmaj7#11, G7b9#11, and angular minor 7b5 colors.</p>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
+                        <span class="text-emerald-400 font-bold">Mode 5:</span> 6 transpositions • [C, Db, F, F#, G, B]
+                        <p class="font-sans text-[11px] text-slate-400 mt-0.5">Symmetrical at the tritone (1-4-1 pattern). Distinctive wide tritone-based sparse harmony.</p>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
+                        <span class="text-amber-400 font-bold">Mode 6:</span> 6 transpositions • [C, D, E, F, F#, G#, Bb, B]
+                        <p class="font-sans text-[11px] text-slate-400 mt-0.5">Symmetrical at the tritone (2-2-1-1 pattern). Yields Cmaj7#11, Bb7alt, and augmented triads.</p>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
+                        <span class="text-rose-400 font-bold">Mode 7:</span> 6 transpositions • [C, Db, D, Eb, F, F#, G, Ab, A, B]
+                        <p class="font-sans text-[11px] text-slate-400 mt-0.5">10-Note symmetrical scale (1-1-1-2 pattern). Almost chromatic with rich modal choices.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Messiaen Guitar Lab - Core Application Script
+         */
+
+        // Pitch names and pitch class offsets
+        const PITCH_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+
+        // Standard Guitar Tuning strings (E2, A2, D3, G3, B3, E4) in pitch classes
+        const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
+
+        // Messiaen Modes Definitions (Semitone steps from root 0)
+        const MESSIAEN_MODES = {
+            1: {
+                name: "Mode 1 (Whole-Tone)",
+                steps: [0, 2, 4, 6, 8, 10],
+                symmetry: "Whole-Step (2 Semitones)",
+                chords: ["C+", "D7b5", "F#7#5", "Augmented Triads"]
+            },
+            2: {
+                name: "Mode 2 (Half-Whole Diminished)",
+                steps: [0, 1, 3, 4, 6, 7, 9, 10],
+                symmetry: "Minor 3rd (3 Semitones)",
+                chords: ["Cm7", "Cm7b5", "C7b9", "F#7#9", "A7b5b9", "Diminished Triads"]
+            },
+            3: {
+                name: "Mode 3 (9-Note Symmetrical)",
+                steps: [0, 2, 3, 4, 6, 7, 8, 10, 11],
+                symmetry: "Major 3rd (4 Semitones)",
+                chords: ["Cmaj7#11", "Cm9", "Ebmaj7", "E7#9", "Abm7", "G+", "Bmaj7"]
+            },
+            4: {
+                name: "Mode 4 (Tritone Symmetrical 1)",
+                steps: [0, 1, 2, 5, 6, 7, 8, 11],
+                symmetry: "Tritone (6 Semitones)",
+                chords: ["Dbmaj7#11", "Dm7b5", "G7b9#11", "Abm7b5", "Bm"]
+            },
+            5: {
+                name: "Mode 5 (Tritone Symmetrical 2)",
+                steps: [0, 1, 5, 6, 7, 11],
+                symmetry: "Tritone (6 Semitones)",
+                chords: ["Db7b5", "G7b5", "Dbmaj7#11", "Gmaj7#11"]
+            },
+            6: {
+                name: "Mode 6 (Tritone Symmetrical 3)",
+                steps: [0, 2, 4, 5, 6, 8, 10, 11],
+                symmetry: "Tritone (6 Semitones)",
+                chords: ["Cmaj7#11", "Bb7alt", "Dm7b5", "E7#11", "F#7#5"]
+            },
+            7: {
+                name: "Mode 7 (10-Note Symmetrical)",
+                steps: [0, 1, 2, 3, 5, 6, 7, 8, 9, 11],
+                symmetry: "Tritone (6 Semitones)",
+                chords: ["Dbmaj7", "Dm7", "Fm9", "Ab7b9", "Bm7b5", "G7#11"]
+            }
+        };
+
+        // Current App State
+        let state = {
+            rootPitch: 0, // 0 = C
+            modeNum: 3,
+            chanceMethod: 'stochasticWalk',
+            direction: 'freeChance',
+            transformation: 'prime',
+            rhythm: '16th',
+            phraseLength: 16,
+            accentShift: false,
+            bpm: 110,
+            droneActive: false,
+            synthTimbre: 'guitar',
+            currentPhrase: null,
+            isPlaying: false
+        };
+
+        // Web Audio API Synth Engine
+        let audioCtx = null;
+        let droneOsc1 = null;
+        let droneOsc2 = null;
+        let droneGain = null;
+        let playTimeoutIds = [];
+
+        function initAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function pitchToFreq(midiNote) {
+            return 440 * Math.pow(2, (midiNote - 69) / 12);
+        }
+
+        function playGuitarNote(midiNote, time, duration, timbre = 'guitar', isAccent = false) {
+            if (!audioCtx) return;
+
+            const freq = pitchToFreq(midiNote);
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+
+            if (timbre === 'guitar') {
+                osc.type = 'triangle';
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(isAccent ? 3200 : 2200, time);
+                filter.frequency.exponentialRampToValueAtTime(300, time + duration);
+
+                gain.gain.setValueAtTime(0, time);
+                gain.gain.linearRampToValueAtTime(isAccent ? 0.45 : 0.3, time + 0.005);
+                gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+            } else if (timbre === 'legato') {
+                osc.type = 'sawtooth';
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(1800, time);
+                
+                gain.gain.setValueAtTime(0, time);
+                gain.gain.linearRampToValueAtTime(0.25, time + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, time + duration * 1.2);
+            } else { // Clean
+                osc.type = 'sine';
+                gain.gain.setValueAtTime(0, time);
+                gain.gain.linearRampToValueAtTime(0.35, time + 0.008);
+                gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+            }
+
+            osc.frequency.setValueAtTime(freq, time);
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start(time);
+            osc.stop(time + duration + 0.1);
+        }
+
+        function toggleDroneChord() {
+            initAudioContext();
+            if (state.droneActive) {
+                if (droneGain) {
+                    droneGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                    setTimeout(() => {
+                        if (droneOsc1) droneOsc1.stop();
+                        if (droneOsc2) droneOsc2.stop();
+                        droneOsc1 = null;
+                        droneOsc2 = null;
+                    }, 350);
+                }
+                state.droneActive = false;
+                document.getElementById('droneText').innerText = "Drone Chord: Off";
+                document.getElementById('droneBtn').classList.remove('bg-indigo-600', 'text-white');
+            } else {
+                const rootMidi = 36 + state.rootPitch; // Low octave C2
+                const modeInfo = MESSIAEN_MODES[state.modeNum];
+                const colorOffset = modeInfo.steps[Math.floor(modeInfo.steps.length / 2)] || 4;
+                const colorMidi = rootMidi + 12 + colorOffset;
+
+                droneOsc1 = audioCtx.createOscillator();
+                droneOsc2 = audioCtx.createOscillator();
+                droneGain = audioCtx.createGain();
+
+                droneOsc1.type = 'sawtooth';
+                droneOsc2.type = 'triangle';
+
+                droneOsc1.frequency.setValueAtTime(pitchToFreq(rootMidi), audioCtx.currentTime);
+                droneOsc2.frequency.setValueAtTime(pitchToFreq(colorMidi), audioCtx.currentTime);
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(450, audioCtx.currentTime);
+
+                droneGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                droneGain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.8);
+
+                droneOsc1.connect(filter);
+                droneOsc2.connect(filter);
+                filter.connect(droneGain);
+                droneGain.connect(audioCtx.destination);
+
+                droneOsc1.start();
+                droneOsc2.start();
+
+                state.droneActive = true;
+                document.getElementById('droneText').innerText = "Drone Chord: On";
+                document.getElementById('droneBtn').classList.add('bg-indigo-600', 'text-white');
+            }
+        }
+
+        /**
+         * Algorithmic Phrase Generator with Aleatoric / Chance Operations
+         */
+        function generatePhrase() {
+            const mode = MESSIAEN_MODES[state.modeNum];
+            const root = state.rootPitch;
+
+            // Generate full pitch collection across full playable guitar range (from E2 [MIDI 40] to E6 [MIDI 88])
+            let pitchCollection = [];
+            for (let octave = 2; octave <= 5; octave++) {
+                mode.steps.forEach(step => {
+                    let midi = (octave + 1) * 12 + ((root + step) % 12);
+                    if (midi >= 40 && midi <= 88) {
+                        pitchCollection.push(midi);
+                    }
+                });
+            }
+            pitchCollection = [...new Set(pitchCollection)].sort((a, b) => a - b);
+
+            let len = state.phraseLength;
+            let rawNotes = [];
+
+            // Execute Chosen Chance Operation Strategy
+            if (state.chanceMethod === 'stochasticWalk') {
+                // Stochastic Walk: Random walk across mode pitches with weighted interval leap probabilities
+                let curIdx = Math.floor(pitchCollection.length * 0.4);
+                for (let i = 0; i < len; i++) {
+                    rawNotes.push(pitchCollection[curIdx]);
+                    
+                    // Chance decision: 45% step (+/-1 or +/-2), 40% jump (+/-3 or +/-4 steps), 15% wide tritone/octave leap
+                    let chance = Math.random();
+                    let delta = 1;
+                    if (chance < 0.45) {
+                        delta = (Math.random() > 0.5 ? 1 : -1) * (Math.random() > 0.3 ? 1 : 2);
+                    } else if (chance < 0.85) {
+                        delta = (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random() * 3) + 3);
+                    } else {
+                        delta = (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random() * 4) + 5);
+                    }
+
+                    curIdx += delta;
+                    if (curIdx < 0) curIdx = Math.abs(curIdx) % pitchCollection.length;
+                    if (curIdx >= pitchCollection.length) curIdx = pitchCollection.length - 1 - (curIdx % pitchCollection.length);
+                }
+            } else if (state.chanceMethod === 'symmetricalSeed') {
+                // Symmetrical Seed Permutation: Create a 3-5 note motivic seed and apply aleatoric transposition shifts
+                let seedLength = Math.floor(Math.random() * 3) + 3; // 3 to 5 notes
+                let seedIndices = [];
+                let startPos = Math.floor(pitchCollection.length * 0.3);
+                
+                for (let k = 0; k < seedLength; k++) {
+                    let nextPos = (startPos + Math.floor(Math.random() * 5) - 2) % pitchCollection.length;
+                    if (nextPos < 0) nextPos += pitchCollection.length;
+                    seedIndices.push(nextPos);
+                }
+
+                let shiftAmount = Math.floor(mode.steps.length / 2) || 2;
+                for (let i = 0; i < len; i++) {
+                    let seedNoteIdx = seedIndices[i % seedLength];
+                    let cycleCount = Math.floor(i / seedLength);
+                    let chanceOffset = (cycleCount * shiftAmount + (Math.random() < 0.3 ? 1 : 0)) % pitchCollection.length;
+                    let finalIdx = (seedNoteIdx + chanceOffset) % pitchCollection.length;
+                    rawNotes.push(pitchCollection[finalIdx]);
+                }
+            } else if (state.chanceMethod === 'intervallicChance') {
+                // Intervallic Leap Matrix: Angular wide leaps across mode steps
+                let idx = Math.floor(pitchCollection.length * 0.35);
+                for (let i = 0; i < len; i++) {
+                    rawNotes.push(pitchCollection[idx % pitchCollection.length]);
+                    // Alternate wide leap up and short drop down with chance variance
+                    let leap = (i % 2 === 0) ? (Math.floor(Math.random() * 4) + 3) : -(Math.floor(Math.random() * 3) + 1);
+                    idx += leap;
+                    if (idx < 0) idx += pitchCollection.length;
+                    if (idx >= pitchCollection.length) idx = idx % pitchCollection.length;
+                }
+            } else if (state.chanceMethod === 'stringSkippingChance') {
+                // String-Skipping Aleatoric Jumps
+                let baseIdx = Math.floor(pitchCollection.length * 0.25);
+                for (let i = 0; i < len; i++) {
+                    let jump = (i % 3 === 0) ? 6 : (i % 3 === 1 ? -2 : 4);
+                    jump += Math.random() > 0.6 ? 1 : -1;
+                    baseIdx = (baseIdx + jump) % pitchCollection.length;
+                    if (baseIdx < 0) baseIdx += pitchCollection.length;
+                    rawNotes.push(pitchCollection[baseIdx]);
+                }
+            } else {
+                // Holdsworth Symmetrical Legato Stretches
+                let start = Math.floor(pitchCollection.length * 0.2);
+                for (let i = 0; i < len; i++) {
+                    let stepJump = (i % 4 === 3) ? (Math.random() > 0.5 ? 5 : -3) : (Math.random() > 0.5 ? 2 : 1);
+                    start = (start + stepJump) % pitchCollection.length;
+                    if (start < 0) start += pitchCollection.length;
+                    rawNotes.push(pitchCollection[start]);
+                }
+            }
+
+            // Apply Contour Direction Filters if specified
+            if (state.direction === 'ascending') {
+                rawNotes.sort((a, b) => a - b);
+            } else if (state.direction === 'descending') {
+                rawNotes.sort((a, b) => b - a);
+            } else if (state.direction === 'arch') {
+                let mid = Math.floor(rawNotes.length / 2);
+                let asc = rawNotes.slice(0, mid).sort((a, b) => a - b);
+                let desc = rawNotes.slice(mid).sort((a, b) => b - a);
+                rawNotes = [...asc, ...desc];
+            }
+
+            // Apply Inversion / Retrograde Transformations
+            if (state.transformation === 'retrograde') {
+                rawNotes.reverse();
+            } else if (state.transformation === 'inversion' || state.transformation === 'retroInversion') {
+                // Shift inversion baseline starting pivot +12 semitones HIGHER (an octave higher)
+                // so that inverted descending intervals utilize high/middle strings (G, B, high E)
+                let basePivot = rawNotes[0] + 12; // Start octave higher!
+                
+                rawNotes = rawNotes.map(n => {
+                    let invertedMidi = basePivot - (n - rawNotes[0]);
+                    // Keep inverted MIDI within playable guitar register (E3 to E6)
+                    while (invertedMidi < 48) invertedMidi += 12;
+                    while (invertedMidi > 88) invertedMidi -= 12;
+                    return invertedMidi;
+                });
+
+                if (state.transformation === 'retroInversion') {
+                    rawNotes.reverse();
+                }
+            }
+
+            // Map MIDI notes to optimal physical Guitar String & Fret positions
+            let guitarPath = mapMidiToGuitarPath(rawNotes, state.transformation.includes('inversion'));
+
+            // Construct Final Phrase Object
+            state.currentPhrase = {
+                title: `#${Math.floor(Math.random() * 800 + 100)} Mode ${state.modeNum} Chance Line`,
+                root: PITCH_NAMES[state.rootPitch],
+                modeName: MESSIAEN_MODES[state.modeNum].name,
+                notes: guitarPath,
+                accentShift: state.accentShift
+            };
+
+            renderPhraseOutput();
+        }
+
+        // Map array of MIDI pitch values to practical guitar fretboard fingering
+        function mapMidiToGuitarPath(midiNotes, isInverted = false) {
+            let path = [];
+            // If inverted, prefer middle-to-high strings (strings 0, 1, 2 = e, B, G)
+            let currentString = isInverted ? 1 : 4;
+
+            midiNotes.forEach((midi, i) => {
+                let bestCandidate = null;
+                let minFretDist = 999;
+
+                // Search across 6 guitar strings
+                for (let s = 0; s < 6; s++) {
+                    let openMidi = [64, 59, 55, 50, 45, 40][s]; // e, B, G, D, A, E
+                    let fret = midi - openMidi;
+
+                    if (fret >= 0 && fret <= 22) {
+                        let stringDist = Math.abs(s - currentString);
+                        // Favor higher frets and higher strings when inverted
+                        let fretBias = isInverted ? Math.abs(fret - 12) : fret;
+                        let score = fretBias + stringDist * 3.5;
+
+                        if (score < minFretDist) {
+                            minFretDist = score;
+                            bestCandidate = { midi, string: s, fret };
+                        }
+                    }
+                }
+
+                if (!bestCandidate) {
+                    bestCandidate = { midi, string: 1, fret: 10 };
+                }
+
+                currentString = bestCandidate.string;
+
+                let technique = '';
+                if (i > 0) {
+                    let prev = path[i - 1];
+                    if (prev.string === bestCandidate.string) {
+                        if (bestCandidate.fret > prev.fret) technique = 'h';
+                        else if (bestCandidate.fret < prev.fret) technique = 'p';
+                    } else if (Math.abs(prev.string - bestCandidate.string) === 1 && Math.abs(prev.fret - bestCandidate.fret) > 4) {
+                        technique = 'sl.';
+                    }
+                }
+
+                // Determine duration multiplier & rhythm type based on user selection
+                let durationFactor = 1.0;
+                let isRest = false;
+                let rhythmLabel = '16th';
+
+                if (state.rhythm === 'triplet') {
+                    durationFactor = 0.667;
+                    rhythmLabel = '3';
+                } else if (state.rhythm === 'quintuplet') {
+                    durationFactor = 0.8;
+                    rhythmLabel = '5';
+                } else if (state.rhythm === 'aleatoricRhythm') {
+                    // Pseudo-aleatoric mixed rhythm generator (8ths, 16ths, dotted, 32nds, rests)
+                    const rnd = (Math.sin(i * 12.9898 + state.rootPitch * 78.233) + 1) / 2;
+                    if (rnd < 0.22) {
+                        durationFactor = 2.0; // 8th note
+                        rhythmLabel = '8th';
+                    } else if (rnd < 0.42) {
+                        durationFactor = 1.5; // Dotted 16th
+                        rhythmLabel = '16.';
+                    } else if (rnd < 0.60) {
+                        durationFactor = 0.5; // 32nd note burst
+                        rhythmLabel = '32nd';
+                    } else if (rnd < 0.82) {
+                        durationFactor = 1.0; // 16th note
+                        rhythmLabel = '16th';
+                    } else {
+                        durationFactor = 1.5;
+                        isRest = true; // Rest pause
+                        rhythmLabel = 'Rest';
+                    }
+                }
+
+                path.push({
+                    midi,
+                    string: bestCandidate.string,
+                    fret: bestCandidate.fret,
+                    pitchName: PITCH_NAMES[midi % 12],
+                    technique: technique,
+                    isAccent: state.accentShift && (i % 4 === 1),
+                    durationFactor: durationFactor,
+                    isRest: isRest,
+                    rhythmLabel: rhythmLabel
+                });
+            });
+
+            return path;
+        }
+
+        function renderPhraseOutput() {
+            if (!state.currentPhrase) return;
+
+            const phrase = state.currentPhrase;
+            document.getElementById('phraseTitle').innerHTML = `
+                <span class="text-purple-400 font-mono">Mode ${state.modeNum}</span> ${PITCH_NAMES[state.rootPitch]} ${state.chanceMethod.toUpperCase()} Line
+            `;
+            document.getElementById('phraseSubtitle').innerText = `Key of ${PITCH_NAMES[state.rootPitch]} • ${MESSIAEN_MODES[state.modeNum].symmetry} • ${phrase.notes.length} Notes (${state.transformation.toUpperCase()} • ${state.rhythm.toUpperCase()})`;
+
+            // Build ASCII Tab Representation
+            let tabLines = ['e|', 'B|', 'G|', 'D|', 'A|', 'E|'];
+            let rhythmHeader = '  ';
+
+            phrase.notes.forEach((n, idx) => {
+                let fretStr = n.isRest ? 'x' : n.fret.toString();
+                if (n.technique && !n.isRest) fretStr += n.technique;
+                
+                // Visual width proportional to note duration
+                let durationDashes = Math.max(3, Math.round((n.durationFactor || 1.0) * 3));
+                let width = Math.max(fretStr.length + 1, durationDashes);
+
+                rhythmHeader += (n.rhythmLabel || '').padEnd(width, ' ');
+
+                for (let s = 0; s < 6; s++) {
+                    if (s === n.string && !n.isRest) {
+                        tabLines[s] += fretStr.padEnd(width, '-');
+                    } else if (s === n.string && n.isRest) {
+                        tabLines[s] += 'x'.padEnd(width, '-');
+                    } else {
+                        tabLines[s] += '-'.repeat(width);
+                    }
+                }
+
+                if ((idx + 1) % 4 === 0) {
+                    for (let s = 0; s < 6; s++) tabLines[s] += '|';
+                    rhythmHeader += '|';
+                }
+            });
+
+            let fullTabOutput = `RHY: ${rhythmHeader}\n` + tabLines.join('\n');
+            document.getElementById('tabNotationBox').textContent = fullTabOutput;
+
+            renderFretboardSvg();
+        }
+
+        function renderFretboardSvg() {
+            const svg = document.getElementById('fretboardSvg');
+            svg.innerHTML = '';
+
+            const totalFrets = 18;
+            const startX = 50;
+            const fretWidth = (1000 - startX - 20) / totalFrets;
+            const stringGap = 28;
+            const startY = 20;
+
+            const neckRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            neckRect.setAttribute("x", startX);
+            neckRect.setAttribute("y", startY - 10);
+            neckRect.setAttribute("width", 1000 - startX - 20);
+            neckRect.setAttribute("height", stringGap * 5 + 20);
+            neckRect.setAttribute("rx", "6");
+            neckRect.setAttribute("fill", "#0f172a");
+            neckRect.setAttribute("stroke", "#1e293b");
+            svg.appendChild(neckRect);
+
+            const markerFrets = [3, 5, 7, 9, 12, 15, 17];
+            for (let f = 0; f <= totalFrets; f++) {
+                let x = startX + f * fretWidth;
+
+                const fretLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                fretLine.setAttribute("x1", x);
+                fretLine.setAttribute("y1", startY - 5);
+                fretLine.setAttribute("x2", x);
+                fretLine.setAttribute("y2", startY + stringGap * 5 + 5);
+                fretLine.setAttribute("stroke", f === 0 ? "#cbd5e1" : "#334155");
+                fretLine.setAttribute("stroke-width", f === 0 ? "5" : "2");
+                svg.appendChild(fretLine);
+
+                if (f > 0) {
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", x - fretWidth / 2);
+                    text.setAttribute("y", startY + stringGap * 5 + 22);
+                    text.setAttribute("fill", "#64748b");
+                    text.setAttribute("font-size", "10");
+                    text.setAttribute("font-family", "monospace");
+                    text.setAttribute("text-anchor", "middle");
+                    text.textContent = f;
+                    svg.appendChild(text);
+                }
+
+                if (markerFrets.includes(f) && f <= totalFrets) {
+                    let dotX = startX + (f - 0.5) * fretWidth;
+                    if (f === 12) {
+                        [startY + stringGap * 1.5, startY + stringGap * 3.5].forEach(dotY => {
+                            const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                            dot.setAttribute("cx", dotX);
+                            dot.setAttribute("cy", dotY);
+                            dot.setAttribute("r", "3.5");
+                            dot.setAttribute("fill", "#334155");
+                            svg.appendChild(dot);
+                        });
+                    } else {
+                        const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        dot.setAttribute("cx", dotX);
+                        dot.setAttribute("cy", startY + stringGap * 2.5);
+                        dot.setAttribute("r", "4");
+                        dot.setAttribute("fill", "#334155");
+                        svg.appendChild(dot);
+                    }
+                }
+            }
+
+            for (let s = 0; s < 6; s++) {
+                let y = startY + s * stringGap;
+                const stringLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                stringLine.setAttribute("x1", startX);
+                stringLine.setAttribute("y1", y);
+                stringLine.setAttribute("x2", 1000 - 20);
+                stringLine.setAttribute("y2", y);
+                stringLine.setAttribute("stroke", "#475569");
+                stringLine.setAttribute("stroke-width", (1 + s * 0.4).toString());
+                svg.appendChild(stringLine);
+
+                const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                label.setAttribute("x", startX - 15);
+                label.setAttribute("y", y + 4);
+                label.setAttribute("fill", "#94a3b8");
+                label.setAttribute("font-size", "11");
+                label.setAttribute("font-family", "monospace");
+                label.setAttribute("font-weight", "bold");
+                label.setAttribute("text-anchor", "end");
+                label.textContent = STRING_NAMES[s];
+                svg.appendChild(label);
+            }
+
+            if (state.currentPhrase && state.currentPhrase.notes.length > 0) {
+                let points = state.currentPhrase.notes.map(n => {
+                    let cx = n.fret === 0 ? startX - 10 : startX + (n.fret - 0.5) * fretWidth;
+                    let cy = startY + n.string * stringGap;
+                    return `${cx},${cy}`;
+                }).join(' ');
+
+                const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+                polyline.setAttribute("points", points);
+                polyline.setAttribute("fill", "none");
+                polyline.setAttribute("stroke", "#6366f1");
+                polyline.setAttribute("stroke-width", "2");
+                polyline.setAttribute("stroke-dasharray", "4 3");
+                polyline.setAttribute("opacity", "0.6");
+                svg.appendChild(polyline);
+
+                state.currentPhrase.notes.forEach((n, idx) => {
+                    let cx = n.fret === 0 ? startX - 10 : startX + (n.fret - 0.5) * fretWidth;
+                    let cy = startY + n.string * stringGap;
+
+                    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    group.setAttribute("id", `fret-note-${idx}`);
+
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", cx);
+                    circle.setAttribute("cy", cy);
+                    circle.setAttribute("r", "10");
+
+                    let isRoot = (n.midi % 12) === state.rootPitch;
+                    circle.setAttribute("fill", isRoot ? "#a855f7" : "#4f46e5");
+                    circle.setAttribute("stroke", "#ffffff");
+                    circle.setAttribute("stroke-width", "1.5");
+                    circle.setAttribute("class", "transition-all duration-200 cursor-pointer");
+
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", cx);
+                    text.setAttribute("y", cy + 3.5);
+                    text.setAttribute("fill", "#ffffff");
+                    text.setAttribute("font-size", "9");
+                    text.setAttribute("font-weight", "bold");
+                    text.setAttribute("font-family", "monospace");
+                    text.setAttribute("text-anchor", "middle");
+                    text.textContent = n.pitchName;
+
+                    group.appendChild(circle);
+                    group.appendChild(text);
+                    svg.appendChild(group);
+                });
+            }
+        }
+
+        function playPhraseSequence() {
+            initAudioContext();
+
+            if (state.isPlaying) {
+                playTimeoutIds.forEach(id => clearTimeout(id));
+                playTimeoutIds = [];
+                state.isPlaying = false;
+                document.getElementById('playText').innerText = "Play Phrase";
+                document.getElementById('playIcon').className = "fa-solid fa-play";
+                return;
+            }
+
+            if (!state.currentPhrase || state.currentPhrase.notes.length === 0) return;
+
+            state.isPlaying = true;
+            document.getElementById('playText').innerText = "Stop";
+            document.getElementById('playIcon').className = "fa-solid fa-square";
+
+            const notes = state.currentPhrase.notes;
+            const bpm = state.bpm;
+            const base16thSec = (60 / bpm) / 4;
+
+            let startTime = audioCtx.currentTime + 0.1;
+            let cumulativeOffsetSec = 0;
+
+            notes.forEach((n, idx) => {
+                let noteDuration = base16thSec * (n.durationFactor || 1.0);
+                let noteTime = startTime + cumulativeOffsetSec;
+
+                if (!n.isRest) {
+                    playGuitarNote(n.midi, noteTime, noteDuration * 0.9, state.synthTimbre, n.isAccent);
+                }
+
+                let timeoutId = setTimeout(() => {
+                    const el = document.getElementById(`fret-note-${idx}`);
+                    if (el) {
+                        el.classList.add('playing-note');
+                        setTimeout(() => el.classList.remove('playing-note'), Math.max(80, noteDuration * 1000));
+                    }
+
+                    if (idx === notes.length - 1) {
+                        setTimeout(() => {
+                            state.isPlaying = false;
+                            document.getElementById('playText').innerText = "Play Phrase";
+                            document.getElementById('playIcon').className = "fa-solid fa-play";
+                        }, noteDuration * 1000);
+                    }
+                }, Math.max(0, (noteTime - audioCtx.currentTime) * 1000));
+
+                playTimeoutIds.push(timeoutId);
+                cumulativeOffsetSec += noteDuration;
+            });
+        }
+
+        function setupUI() {
+            const pitchGrid = document.getElementById('rootPitchGrid');
+            pitchGrid.innerHTML = '';
+            PITCH_NAMES.forEach((p, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `py-1 text-xs font-mono rounded-lg border transition ${idx === state.rootPitch ? 'bg-indigo-600 text-white border-indigo-400 font-bold' : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'}`;
+                btn.innerText = p;
+                btn.addEventListener('click', () => {
+                    state.rootPitch = idx;
+                    setupUI();
+                    generatePhrase();
+                });
+                pitchGrid.appendChild(btn);
+            });
+
+            const mode = MESSIAEN_MODES[state.modeNum];
+            document.getElementById('symmetryBadge').innerText = mode.symmetry;
+            document.getElementById('noteCount').innerText = `${mode.steps.length} pitches`;
+
+            const modePitches = mode.steps.map(s => PITCH_NAMES[(state.rootPitch + s) % 12]).join(' ');
+            document.getElementById('modeNotesDisplay').innerText = modePitches;
+
+            const chordBadges = document.getElementById('chordFamilyBadges');
+            chordBadges.innerHTML = '';
+            mode.chords.forEach(c => {
+                const badge = document.createElement('span');
+                badge.className = "px-2 py-0.5 rounded-md bg-slate-950 text-slate-300 border border-slate-800 font-mono text-[11px]";
+                badge.innerText = c;
+                chordBadges.appendChild(badge);
+            });
+        }
+
+        // Initialize Application
+        window.addEventListener('DOMContentLoaded', () => {
+            setupUI();
+            generatePhrase();
+
+            // Event Bindings
+            document.getElementById('modeSelect').addEventListener('change', (e) => {
+                state.modeNum = parseInt(e.target.value);
+                setupUI();
+                generatePhrase();
+            });
+
+            document.getElementById('chanceMethodSelect').addEventListener('change', (e) => {
+                state.chanceMethod = e.target.value;
+                generatePhrase();
+            });
+
+            document.getElementById('directionSelect').addEventListener('change', (e) => {
+                state.direction = e.target.value;
+                generatePhrase();
+            });
+
+            document.getElementById('transformSelect').addEventListener('change', (e) => {
+                state.transformation = e.target.value;
+                generatePhrase();
+            });
+
+            document.getElementById('rhythmSelect').addEventListener('change', (e) => {
+                state.rhythm = e.target.value;
+                generatePhrase();
+            });
+
+            // Dual input binding for Phrase Length (Slider & Number Box)
+            const lengthRange = document.getElementById('phraseLengthRange');
+            const lengthNumber = document.getElementById('phraseLengthNumber');
+
+            const syncLength = (val) => {
+                let n = parseInt(val);
+                if (isNaN(n)) n = 16;
+                n = Math.max(4, Math.min(64, n));
+                state.phraseLength = n;
+                lengthRange.value = n;
+                lengthNumber.value = n;
+                document.getElementById('phraseLengthVal').innerText = `${n} Notes`;
+                generatePhrase();
+            };
+
+            lengthRange.addEventListener('input', (e) => syncLength(e.target.value));
+            lengthNumber.addEventListener('change', (e) => syncLength(e.target.value));
+
+            document.getElementById('accentShiftToggle').addEventListener('change', (e) => {
+                state.accentShift = e.target.checked;
+                generatePhrase();
+            });
+
+            document.getElementById('generateBtn').addEventListener('click', () => {
+                generatePhrase();
+            });
+
+            document.getElementById('playBtn').addEventListener('click', () => {
+                playPhraseSequence();
+            });
+
+            document.getElementById('droneBtn').addEventListener('click', () => {
+                toggleDroneChord();
+            });
+
+            document.getElementById('bpmRange').addEventListener('input', (e) => {
+                state.bpm = parseInt(e.target.value);
+                document.getElementById('bpmDisplay').innerText = `${state.bpm} BPM`;
+            });
+
+            document.getElementById('synthTimbreSelect').addEventListener('change', (e) => {
+                state.synthTimbre = e.target.value;
+            });
+
+            document.getElementById('copyTabBtn').addEventListener('click', () => {
+                const tabText = document.getElementById('tabNotationBox').textContent;
+                navigator.clipboard.writeText(tabText).then(() => {
+                    const btn = document.getElementById('copyTabBtn');
+                    btn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i>`;
+                    setTimeout(() => btn.innerHTML = `<i class="fa-solid fa-copy"></i>`, 1500);
+                });
+            });
+
+            // Info Modal Events
+            const modal = document.getElementById('infoModal');
+            document.getElementById('infoModalBtn').addEventListener('click', () => {
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+            });
+            document.getElementById('closeModalBtn').addEventListener('click', () => {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+            });
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.classList.add('opacity-0', 'pointer-events-none');
+            });
+        });
+    </script>
+</body>
+</html>
